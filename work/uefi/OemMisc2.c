@@ -5,6 +5,8 @@
 #include <Protocol/EFIRng.h>
 #include <Protocol/EFINandPartiGuid.h>
 #include <Library/LinuxLoaderLib.h>
+#include <Library/UefiLib.h>
+#include <Library/BootLinux.h>
 
 #define BLK_BITS         (9)
 #define BLK_SIZE         (1 << BLK_BITS)
@@ -539,8 +541,15 @@ int Misc2InfoParse(int key) {
         GetPropFromMisc2(read_part_buf, STR_MISC2_BLUR, (char*)(misc2Info.info + E_BLUR_STRING));
         GetPropFromMisc2(read_part_buf, STR_MISC2_SVNKIT, (char*)(misc2Info.info + E_SVNKIT));
         GetPropFromMisc2(read_part_buf, STR_MISC2_ESIMSTAT, (char*)(misc2Info.info + E_ESIMSTAT));
+        if (read_part_buf[4080] == '1') {
+            DEBUG((EFI_D_ERROR, "update esim state to 1\n"));
+            AsciiSPrint((CHAR8*)(misc2Info.info + E_ESIMSTAT), BUFF_MAX, "%a", "esim_state=1");
+        } else if (read_part_buf[4080] == '2') {
+            DEBUG((EFI_D_ERROR, "update esim state to 2\n"));
+            AsciiSPrint((CHAR8*)(misc2Info.info + E_ESIMSTAT), BUFF_MAX, "%a", "esim_state=2");
+        }
 
-        ZeroMem(hashbuffer_misc2, sizeof(hashbuffer_misc2));
+        ZeroMem(hashbuffer_misc2, sizeof(hashbuffer_misc2)); 
         CopyMem(&hashbuffer_misc2[0], &hashbuffer[19], 64);
 
         ZeroMem(chipid, 64);
@@ -615,3 +624,25 @@ void Misc2AddCmdLine(char *cmdBuf, int bufLen)
     }
 }
 
+void Misc2SetFdt(void * fdt)
+{
+    int ret;
+    int offset;
+    char *p;
+
+    offset = fdt_path_offset(fdt, "/firmware/android");
+    for (int i = 0; i <= E_ESIMSTAT; i++) {
+        if (AsciiStrLen(misc2Info.info[i])) {
+            p = AsciiStrStr(misc2Info.info[i], "=");
+            if (!p) {
+                continue;
+            }
+            *p++ = 0;
+
+            ret = fdt_setprop_string(fdt, offset, misc2Info.info[i], p);
+            if (ret < 0) {
+                DEBUG((EFI_D_ERROR, "Misc2: setprop failed\n"));
+            }
+        }
+    }
+}
