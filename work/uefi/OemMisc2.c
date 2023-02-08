@@ -7,6 +7,7 @@
 #include <Library/LinuxLoaderLib.h>
 #include <Library/UefiLib.h>
 #include <Library/BootLinux.h>
+#include <Protocol/EFISmem.h>
 
 #define BLK_BITS         (9)
 #define BLK_SIZE         (1 << BLK_BITS)
@@ -617,7 +618,7 @@ void Misc2AddCmdLine(char *cmdBuf, int bufLen)
 
     for (int i = 0; i <= E_ESIMSTAT; i++) {
         if (AsciiStrLen(misc2Info.info[i])) {
-            ZeroMem(buf, sizeof(buf)); 
+            ZeroMem(buf, sizeof(buf));
             AsciiSPrint (buf, sizeof(buf), " androidboot.%a", misc2Info.info[i]);
             AsciiStrnCatS (cmdBuf, bufLen, buf, AsciiStrLen(buf));
         }
@@ -629,7 +630,12 @@ void Misc2SetFdt(void * fdt)
     int ret;
     int offset;
     char *p;
+    EFI_SMEM_PROTOCOL * smem_protocol;
+    EFI_STATUS status;
+    SkuBoardIDSmemType sku;
+    SkuBoardIDSmemType *addr = NULL;
 
+    ZeroMem(&sku, sizeof(sku));
     offset = fdt_path_offset(fdt, "/firmware/android");
     for (int i = 0; i <= E_ESIMSTAT; i++) {
         if (AsciiStrLen(misc2Info.info[i])) {
@@ -639,10 +645,29 @@ void Misc2SetFdt(void * fdt)
             }
             *p++ = 0;
 
-            ret = fdt_setprop_string(fdt, offset, misc2Info.info[i], p);
+            if (!AsciiStriCmp(p, "V800")) {
+                sku.skuid_idx = 1;
+            } else if (!AsciiStriCmp(p, "V900")) {
+                sku.skuid_idx = 2;
+            }
+            ret = fdt_setprop_string(fdt, offset, misc2Info.info[i], p); 
             if (ret < 0) {
                 DEBUG((EFI_D_ERROR, "Misc2: setprop failed\n"));
             }
         }
     }
+
+    // set sku id to smem for modem
+    status = gBS->LocateProtocol(&gEfiSMEMProtocolGuid, NULL, (void**)&smem_protocol);
+    if(status != EFI_SUCCESS) {
+        DEBUG ((EFI_D_ERROR, "Unable to locate smem protocol; status=0x%x\n", status));
+        return;
+    }
+    status = smem_protocol->SmemAlloc(SMEM_ID_VENDOR1, sizeof(sku), (void **)&addr);
+    if(status != EFI_SUCCESS) {
+        DEBUG ((EFI_D_ERROR, "Unable to alloc smem; status=0x%x\n", status));
+        return;
+    }
+    DEBUG ((EFI_D_ERROR, "Set skuid_idx %d to smem SMEM_ID_VENDOR1\n", sku.skuid_idx));
+    CopyMem(addr, &sku, sizeof(sku));
 }

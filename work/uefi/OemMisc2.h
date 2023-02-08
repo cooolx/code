@@ -70,11 +70,17 @@ typedef struct {
     char info[10][BUFF_MAX];
 } Misc2Info;
 
+typedef struct {
+	UINT32 boardid_idx;
+	UINT32 skuid_idx;
+} SkuBoardIDSmemType;
+
 extern Misc2Info misc2Info;
 
 int Misc2InfoInit(int key);
 
 void Misc2AddCmdLine(char *buf, int length);
+void Misc2SetFdt(void * fdt);
 
 #endif
 
