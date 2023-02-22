@@ -13,6 +13,8 @@
 #define BLK_SIZE         (1 << BLK_BITS)
 
 Misc2Info misc2Info;
+static char *read_part_buf;
+static char misc2_esim_state;
 
 /**********************************************************************************************************************************************************/
 #define SHA256_ROTL(a,b) (((a>>(32-b))&(0x7fffffff>>(31-b)))|(a<<b))
@@ -456,7 +458,6 @@ static void Misc2InfoDataInit(void) {
 
 int Misc2InfoParse(int key) {
     int read_part_ret, length;
-    char *read_part_buf;
     char *p, *q;
     char hashbuffer[256];
     char hashbuffer_misc2[256];
@@ -472,25 +473,22 @@ int Misc2InfoParse(int key) {
 
     read_part_buf = (char *)AllocatePool(read_size);
     if (read_part_buf == NULL) {
-        DEBUG((EFI_D_ERROR, "tn_Boot_Misc2_Parser find config_version&config_end error\n"));
-        AsciiStrCpy((CHAR8*)(misc2Info.info + E_CARRIER), " FAIL:malloc error");
-        FreePool(read_part_buf);
+        DEBUG((EFI_D_ERROR, "Misc2 fail to allcate memory\n"));
         return TINNO_INIT_MALLOC_FAIL;
     }
 
     read_part_ret = LoadImageFromPartition(read_part_buf, &read_size, L"misc2");
     if (read_part_ret < 0) {
-        AsciiStrCpy((CHAR8*)(misc2Info.info + E_CARRIER), " FAIL:no partion");
-        DEBUG((EFI_D_ERROR, "do have partition misc2\n"));
+        DEBUG((EFI_D_ERROR, "Misc2 fail to load partition misc2\n"));
         FreePool(read_part_buf);
         return TINNO_INIT_PARTITION_ERROR;
     }
+    misc2_esim_state = read_part_buf[4080];
 
     p = AsciiStrStr(read_part_buf, "tn_config_version=002");
     q = strstr_tn(read_part_buf, "tn_config_end", 4096);
     if (p == NULL || q == NULL) {
-        DEBUG((EFI_D_ERROR, "tn_Boot_Misc2_Parser find config_version&config_end error\n"));
-        AsciiStrCpy((CHAR8*)(misc2Info.info + E_CARRIER), " FAIL:partition format error");
+        DEBUG((EFI_D_ERROR, "Misc2 find config_version&config_end error\n"));
         FreePool(read_part_buf);
         return TINNO_INIT_PARTITION_ERROR;
     }
@@ -521,8 +519,7 @@ int Misc2InfoParse(int key) {
         AsciiStrCpy(hashbuffer_misc2, q);
 
         if (0 != AsciiStrCmp(hashbuffer_misc2, hashbuffer)) {
-            DEBUG((EFI_D_ERROR, "hash miss match!!!!!!!!!!!!\n"));
-            AsciiStrCpy((CHAR8*)(misc2Info.info + E_CARRIER), " FAIL:hash miss match");
+            DEBUG((EFI_D_ERROR, "Misc2 hash miss match!!!!!!!!!!!!\n"));
             FreePool(read_part_buf);
             return TINNO_INIT_MD5_MISMATCH;
         } else
@@ -542,13 +539,6 @@ int Misc2InfoParse(int key) {
         GetPropFromMisc2(read_part_buf, STR_MISC2_BLUR, (char*)(misc2Info.info + E_BLUR_STRING));
         GetPropFromMisc2(read_part_buf, STR_MISC2_SVNKIT, (char*)(misc2Info.info + E_SVNKIT));
         GetPropFromMisc2(read_part_buf, STR_MISC2_ESIMSTAT, (char*)(misc2Info.info + E_ESIMSTAT));
-        if (read_part_buf[4080] == '1') {
-            DEBUG((EFI_D_ERROR, "update esim state to 1\n"));
-            AsciiSPrint((CHAR8*)(misc2Info.info + E_ESIMSTAT), BUFF_MAX, "%a", "esim_state=1");
-        } else if (read_part_buf[4080] == '2') {
-            DEBUG((EFI_D_ERROR, "update esim state to 2\n"));
-            AsciiSPrint((CHAR8*)(misc2Info.info + E_ESIMSTAT), BUFF_MAX, "%a", "esim_state=2");
-        }
 
         ZeroMem(hashbuffer_misc2, sizeof(hashbuffer_misc2)); 
         CopyMem(&hashbuffer_misc2[0], &hashbuffer[19], 64);
@@ -585,12 +575,11 @@ int Misc2InfoParse(int key) {
         DEBUG((EFI_D_ERROR, "tn misc2 sig  from misc2 , %s\n", hashbuffer_misc2));
 
         if (0 != AsciiStrCmp(hashbuffer_misc2, hashbuffer)) {
-            DEBUG((EFI_D_ERROR, "sig miss match!!!!!!!!!!!!\n"));
-            AsciiStrCpy((CHAR8*)(misc2Info.info + E_CARRIER), " FAIL:sig mistach");
+            DEBUG((EFI_D_ERROR, "Misc2 sig miss match!!!!!!!!!!!!\n"));
         } else
-            DEBUG((EFI_D_ERROR, "misc2 partition check sig successful!!!\n"));
+            DEBUG((EFI_D_ERROR, "Misc2 partition check sig successful!!!\n"));
     } else {
-        AsciiStrCpy((CHAR8*)(misc2Info.info + E_CARRIER), " FAIL:length error");
+        DEBUG((EFI_D_ERROR, "Misc2 read length error\n"));
         FreePool(read_part_buf);
         return  TINNO_INIT_LEN_OVERFLOW;
     }
@@ -613,7 +602,15 @@ void Misc2AddCmdLine(char *cmdBuf, int bufLen)
     }
 
     if (Misc2InfoInit(2) != TINNO_INIT_OK) {
-        return;
+        //return;
+    }
+
+    if (misc2_esim_state == 0 || misc2_esim_state == '1') {
+        DEBUG((EFI_D_ERROR, "update esim state to 1\n"));
+        AsciiSPrint((CHAR8*)(misc2Info.info + E_ESIMSTAT), BUFF_MAX, "%a", "esim_state=1");
+    } else if (misc2_esim_state == '2') {
+        DEBUG((EFI_D_ERROR, "update esim state to 2\n"));
+        AsciiSPrint((CHAR8*)(misc2Info.info + E_ESIMSTAT), BUFF_MAX, "%a", "esim_state=2");
     }
 
     for (int i = 0; i <= E_ESIMSTAT; i++) {
