@@ -46,6 +46,7 @@
 #define TINNO_INIT_LEN_SIGNINFO_OVERFLOW                     0x24
 #define TINNO_INIT_SIGNINFO_SIG_MISMATCH                   0x25
 
+#define STR_MISC2_GUID         "misc2_guid"
 #define STR_MISC2_CARRIER      "carrier"
 #define STR_MISC2_SIMNUMBER    "sim_number"
 #define STR_MISC2_MISC2VER     "misc_version"
@@ -56,7 +57,8 @@
 #define STR_MISC2_ESIMSTAT     "esim_state"
 
 enum {
-    E_CARRIER = 0,
+    E_MISC2_GUID = 0,
+    E_CARRIER,
     E_SIM_NUMBER,
     E_MISC_VERSION,
     E_HARDWARE_SKU,
@@ -64,10 +66,11 @@ enum {
     E_BLUR_STRING,
     E_SVNKIT,
     E_ESIMSTAT,
+    E_PROP_COUNT
 };
 
 typedef struct {
-    char info[10][BUFF_MAX];
+    char info[E_PROP_COUNT][BUFF_MAX];
 } Misc2Info;
 
 typedef struct {

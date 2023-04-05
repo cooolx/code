@@ -16,6 +16,21 @@ Misc2Info misc2Info;
 static char *read_part_buf;
 static char misc2_esim_state;
 
+struct misc2_prop {
+    int key;
+    char *name;
+} misc2_props[] = {
+    { E_MISC2_GUID,      STR_MISC2_GUID },
+    { E_CARRIER,         STR_MISC2_CARRIER },
+    { E_SIM_NUMBER,      STR_MISC2_SIMNUMBER },
+    { E_MISC_VERSION,    STR_MISC2_MISC2VER },
+    { E_HARDWARE_SKU,    STR_MISC2_HWSKU },
+    { E_SIM_LOCK,        STR_MISC2_SIMLOCK },
+    { E_BLUR_STRING,     STR_MISC2_BLUR },
+    { E_SVNKIT,          STR_MISC2_SVNKIT },
+    { E_ESIMSTAT,        STR_MISC2_ESIMSTAT },
+};
+
 /**********************************************************************************************************************************************************/
 #define SHA256_ROTL(a,b) (((a>>(32-b))&(0x7fffffff>>(31-b)))|(a<<b))
 #define SHA256_SR(a,b) ((a>>b)&(0x7fffffff>>(b-1)))
@@ -531,14 +546,9 @@ int Misc2InfoParse(int key) {
         DEBUG((EFI_D_ERROR, "%a\n", read_part_buf));
         DEBUG((EFI_D_ERROR, "---------------------------------------------\n"));
 
-        GetPropFromMisc2(read_part_buf, STR_MISC2_CARRIER, (char*)(misc2Info.info + E_CARRIER));
-        GetPropFromMisc2(read_part_buf, STR_MISC2_SIMNUMBER, (char*)(misc2Info.info + E_SIM_NUMBER));
-        GetPropFromMisc2(read_part_buf, STR_MISC2_MISC2VER, (char*)(misc2Info.info + E_MISC_VERSION));
-        GetPropFromMisc2(read_part_buf, STR_MISC2_HWSKU, (char*)(misc2Info.info + E_HARDWARE_SKU));
-        GetPropFromMisc2(read_part_buf, STR_MISC2_SIMLOCK, (char*)(misc2Info.info + E_SIM_LOCK));
-        GetPropFromMisc2(read_part_buf, STR_MISC2_BLUR, (char*)(misc2Info.info + E_BLUR_STRING));
-        GetPropFromMisc2(read_part_buf, STR_MISC2_SVNKIT, (char*)(misc2Info.info + E_SVNKIT));
-        GetPropFromMisc2(read_part_buf, STR_MISC2_ESIMSTAT, (char*)(misc2Info.info + E_ESIMSTAT));
+        for (int i=0; i<E_PROP_COUNT; i++) {
+            GetPropFromMisc2(read_part_buf, misc2_props[i].name, (char*)(misc2Info.info[i]));
+        }
 
         ZeroMem(hashbuffer_misc2, sizeof(hashbuffer_misc2)); 
         CopyMem(&hashbuffer_misc2[0], &hashbuffer[19], 64);
@@ -595,7 +605,11 @@ int  Misc2InfoInit(int key) {
 
 void Misc2AddCmdLine(char *cmdBuf, int bufLen)
 {
-    char buf[64];
+    char buf[BUFF_MAX];
+    EFI_SMEM_PROTOCOL * smem_protocol;
+    EFI_STATUS status;
+    SkuBoardIDSmemType sku;
+    SkuBoardIDSmemType *addr = NULL;
 
     if (cmdBuf == NULL) {
         return;
@@ -620,41 +634,15 @@ void Misc2AddCmdLine(char *cmdBuf, int bufLen)
             AsciiStrnCatS (cmdBuf, bufLen, buf, AsciiStrLen(buf));
         }
     }
-}
-
-void Misc2SetFdt(void * fdt)
-{
-    int ret;
-    int offset;
-    char *p;
-    EFI_SMEM_PROTOCOL * smem_protocol;
-    EFI_STATUS status;
-    SkuBoardIDSmemType sku;
-    SkuBoardIDSmemType *addr = NULL;
-
-    ZeroMem(&sku, sizeof(sku));
-    offset = fdt_path_offset(fdt, "/firmware/android");
-    for (int i = 0; i <= E_ESIMSTAT; i++) {
-        if (AsciiStrLen(misc2Info.info[i])) {
-            p = AsciiStrStr(misc2Info.info[i], "=");
-            if (!p) {
-                continue;
-            }
-            *p++ = 0;
-
-            if (!AsciiStriCmp(p, "V800")) {
-                sku.skuid_idx = 1;
-            } else if (!AsciiStriCmp(p, "V900")) {
-                sku.skuid_idx = 2;
-            }
-            ret = fdt_setprop_string(fdt, offset, misc2Info.info[i], p); 
-            if (ret < 0) {
-                DEBUG((EFI_D_ERROR, "Misc2: setprop failed\n"));
-            }
-        }
-    }
 
     // set sku id to smem for modem
+    ZeroMem(&sku, sizeof(sku));
+    if (!AsciiStriCmp(misc2Info.info[E_HARDWARE_SKU], "hardware.sku=V800")) {
+        sku.skuid_idx = 1;
+    } else if (!AsciiStriCmp(misc2Info.info[E_HARDWARE_SKU], "hardware.sku=V900")) {
+        sku.skuid_idx = 2;
+    }
+
     status = gBS->LocateProtocol(&gEfiSMEMProtocolGuid, NULL, (void**)&smem_protocol);
     if(status != EFI_SUCCESS) {
         DEBUG ((EFI_D_ERROR, "Unable to locate smem protocol; status=0x%x\n", status));
@@ -667,4 +655,26 @@ void Misc2SetFdt(void * fdt)
     }
     DEBUG ((EFI_D_ERROR, "Set skuid_idx %d to smem SMEM_ID_VENDOR1\n", sku.skuid_idx));
     CopyMem(addr, &sku, sizeof(sku));
+}
+
+void Misc2SetFdt(void * fdt)
+{
+    int ret;
+    int offset;
+    char *p;
+
+    offset = fdt_path_offset(fdt, "/firmware/android");
+    for (int i = 0; i <= E_ESIMSTAT; i++) {
+        if (AsciiStrLen(misc2Info.info[i])) {
+            p = AsciiStrStr(misc2Info.info[i], "=");
+            if (!p) {
+                continue;
+            }
+            *p++ = 0;
+            ret = fdt_setprop_string(fdt, offset, misc2Info.info[i], p); 
+            if (ret < 0) {
+                DEBUG((EFI_D_ERROR, "Misc2: setprop failed\n"));
+            }
+        }
+    }
 }
