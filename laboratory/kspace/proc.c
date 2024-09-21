@@ -19,7 +19,7 @@ static mode_t exp_proc_mode = 0644;
 ssize_t exp_proc_read( struct file *file, char __user *data, size_t len, loff_t *ppos )
 {
 	prfl("\n");
-	return len;
+	return 0;
 }
 
 ssize_t exp_proc_write(  struct file *file, const char __user *data, size_t len, loff_t *ppos  )

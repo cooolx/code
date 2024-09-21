@@ -92,16 +92,19 @@ void unregister_ch_dev(void)
 void exp_char_dev(void)
 {
 	int ret = 0;
+	struct class *exp_cls;
 
 	alloc_chrdev_region(&exp_dt, 0, 1, "exp_cdev");
-	prk("test char dev major:%d\n", MAJOR(exp_dt));
+	prk("test char dev major:%d minor:%d\n", MAJOR(exp_dt), MINOR(exp_dt));
 
 	exp_cdev = cdev_alloc();
 	prfl("test_cdev=%p\n", exp_cdev);
 
+	exp_cls = class_create(THIS_MODULE, "exp_class");
 	cdev_init(exp_cdev, &exp_chr_fops);
 	ret = cdev_add(exp_cdev, exp_dt, 1);
-	prfl("cdev_init return %d\n", ret);
+	prfl("cdev_add return %d\n", ret);
+	device_create(exp_cls, NULL, exp_dt, NULL, "exp_cdev");
 
 	register_early_exit(unregister_ch_dev);
 }

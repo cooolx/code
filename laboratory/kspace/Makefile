@@ -15,7 +15,7 @@ EXTRA_CFLAGS += -I$(LDDINC)
 ifneq ($(KERNELRELEASE),)
 # call from kernel build system
 
-kspace-objs := main.o
+# kspace-objs := main.o
 
 obj-m	:= kspace.o
 

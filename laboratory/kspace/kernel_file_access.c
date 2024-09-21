@@ -3,10 +3,10 @@ void kernel_file_access(void)
 {
 	mm_segment_t old_fs;
 	loff_t pos = 0;
-	struct file* p = filp_open("/root/1.txt", O_CREAT | O_RDWR, 0);
+	struct file* p = filp_open("/data/1.txt", O_CREAT | O_RDWR, 0);
 
 	printk("p=%p\n", p);
-	if ( !p )
+	if ( IS_ERR(p) )
 		return;
 	
 	old_fs = get_fs();

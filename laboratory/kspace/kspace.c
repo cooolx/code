@@ -16,7 +16,7 @@
 #include "dev_mode.c"
 #include "dev_class.c"
 #include "kernel_file_access.c"
-#include "test_tasklet.c"
+#include "tasklet.c"
 #include "work_queue.c"
 #include "sched.c"
 #include "kernel_exec.c"
@@ -32,7 +32,7 @@
 #include "mm_page.c"
 
 
-void test(void)
+void exp_test(void)
 {
 #ifdef __EXP_PROC__
 	exp_create_proc();
@@ -110,19 +110,19 @@ void test(void)
 #endif
 }
 
-int hello_init(void)
+int ks_exp_init(void)
 {
-	prfl( "hello_init\n" );
-	test();
+	prfn();
+	exp_test();
 	return 0;
 }
 
-void hello_exit(void)
+void ks_exp_exit(void)
 {
 	struct early_exit* it;
 	struct early_exit* safe;
 
-	prfl( "hello_exit\n" );
+	prfn();
 	list_for_each_entry_safe(it, safe, &exit_head, node)
 	{
 		it->exit();
@@ -133,8 +133,8 @@ void hello_exit(void)
 }
 
 
-module_init( hello_init );
-module_exit( hello_exit );
+module_init( ks_exp_init );
+module_exit( ks_exp_exit );
 
 MODULE_AUTHOR("lzd");
 MODULE_LICENSE("Dual BSD/GPL");
