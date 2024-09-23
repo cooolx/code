@@ -6,7 +6,9 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <asm/uaccess.h>
-
+#include <linux/platform_device.h>
+#include <linux/slab.h>
+#include <linux/vmalloc.h>
 
 // keep this order
 #include "kspace.h"
@@ -18,12 +20,14 @@
 #include "kernel_file_access.c"
 #include "tasklet.c"
 #include "work_queue.c"
+#include "lock.c"
 #include "sched.c"
 #include "kernel_exec.c"
 #include "list_test.c"
 #include "tasks.c"
 #include "netlink.c"
 #include "memory.c"
+#include "mem_eat.c"
 #include "input_test.c"
 #include "input_fake.c"
 #include "notifier.c"
@@ -66,6 +70,11 @@ void exp_test(void)
 	test_work_queue();
 #endif
 
+#ifdef __EXP_LOCK__
+	exp_lock_init(exp_device);
+#endif
+
+
 #ifdef TEST_SCHED
 	printk("before schedule\n");
 	set_current_state(TASK_INTERRUPTIBLE);
@@ -93,6 +102,10 @@ void exp_test(void)
 	memory_test();
 #endif
 
+#ifdef __EXP_MEMORY_EAT__
+	exp_mem_eat_init(exp_device);
+#endif
+
 #ifdef __EXP_INPUT__
 	input_test();
 #endif
@@ -112,7 +125,20 @@ void exp_test(void)
 
 int ks_exp_init(void)
 {
+	int ret;
+
 	prfn();
+	exp_device = platform_device_alloc("exp_device", 0);
+	if (!exp_device) {
+		pr_err("platform_device_alloc failed.\n");
+		return -ENOMEM;
+	}
+	ret = platform_device_add(exp_device);
+	if (ret < 0) {
+		pr_err("platform_device_add failed.\n");
+		return -1;
+	}
+
 	exp_test();
 	return 0;
 }

@@ -20,6 +20,8 @@ typedef struct early_exit
 } early_exit_t;
 LIST_HEAD(exit_head);
 
+static struct platform_device *exp_device;
+
 
 int register_early_exit(fun_exit func)
 {
